@@ -1,0 +1,19 @@
+name = "marchesato-in-festa"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "marchesato-in-festa"
+database_id = "INSERISCI_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "marchesato-media"
+
+# Imposta da Cloudflare come secrets/variabili:
+# ADMIN_PASSWORD
+# SESSION_SECRET
+# RESEND_API_KEY (opzionale)
+# NOTIFY_EMAIL (opzionale)
+# FROM_EMAIL (opzionale)
