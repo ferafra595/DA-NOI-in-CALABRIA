@@ -51,3 +51,24 @@
 @media (max-width: 768px) {
   .cal-range { font-size: 10px; }
 }
+
+
+/* FIX mobile: data multi-giorno completa nei Prossimi eventi */
+@media(max-width:700px){
+  .agenda-item{
+    grid-template-columns:92px 68px minmax(0,1fr);
+    gap:10px;
+  }
+  .agenda-date-range{
+    min-width:90px;
+    width:90px;
+    grid-template-columns:auto auto auto;
+    column-gap:3px;
+    white-space:nowrap;
+  }
+  .agenda-date-range>span{font-size:25px;letter-spacing:-.04em}
+  .agenda-date-range>b{font-size:16px;margin-bottom:3px}
+  .agenda-date-range>small{font-size:10px;white-space:nowrap}
+  .agenda-item>div:nth-of-type(2){min-width:0}
+  .agenda-item h3{white-space:normal;overflow-wrap:anywhere}
+}
