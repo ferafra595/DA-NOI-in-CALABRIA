@@ -80,18 +80,41 @@ function eventsPage(initialView='list'){
     const offset=(first.getDay()+6)%7;
     const monthLabel=new Intl.DateTimeFormat('it-IT',{month:'long',year:'numeric'}).format(first);
     const byDay={};
+    const monthStart=new Date(y,m,1,12,0,0);
+    const monthEnd=new Date(y,m+1,0,12,0,0);
+
     list.forEach(e=>{
       if(!e.start_date)return;
-      const d=new Date(e.start_date+'T12:00:00');
-      if(d.getFullYear()===y&&d.getMonth()===m){
-        const n=d.getDate();(byDay[n]||(byDay[n]=[])).push(e);
+
+      const start=new Date(e.start_date+'T12:00:00');
+      const end=new Date((e.end_date||e.start_date)+'T12:00:00');
+      if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime()))return;
+
+      // Se per errore la data finale precede quella iniziale, usa un solo giorno.
+      const safeEnd=end<start?start:end;
+      if(safeEnd<monthStart||start>monthEnd)return;
+
+      const cursor=new Date(start<monthStart?monthStart:start);
+      const last=new Date(safeEnd>monthEnd?monthEnd:safeEnd);
+
+      while(cursor<=last){
+        const n=cursor.getDate();
+        const dateKey=`${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}-${String(n).padStart(2,'0')}`;
+        const isStart=dateKey===e.start_date;
+        const isEnd=dateKey===(e.end_date||e.start_date);
+        (byDay[n]||(byDay[n]=[])).push({...e,_calIsStart:isStart,_calIsEnd:isEnd,_calDate:dateKey});
+        cursor.setDate(cursor.getDate()+1);
       }
     });
     let cells='';
     for(let i=0;i<offset;i++)cells+='<div class="cal-cell muted"></div>';
     for(let d=1;d<=days;d++){
       const ev=(byDay[d]||[]).slice(0,3);
-      cells+=`<div class="cal-cell"><div class="num">${d}</div>${ev.map(e=>`<a class="cal-event" href="#/evento/${encodeURIComponent(e.slug)}" title="${esc(e.title)}"><b>${esc(e.title)}</b><span>${esc(e.city||e.locality||'')}</span></a>`).join('')}${(byDay[d]||[]).length>3?`<div class="cal-more">+${byDay[d].length-3} altri</div>`:''}</div>`;
+      cells+=`<div class="cal-cell"><div class="num">${d}</div>${ev.map(e=>{
+        const rangeClass=e._calIsStart&&e._calIsEnd?' single':e._calIsStart?' range-start':e._calIsEnd?' range-end':' range-middle';
+        const dateRange=e.end_date&&e.end_date!==e.start_date?`<small class="cal-range">${esc(formatEventRange(e))}</small>`:'';
+        return `<a class="cal-event${rangeClass}" href="#/evento/${encodeURIComponent(e.slug)}" title="${esc(e.title)}"><b>${esc(e.title)}</b>${dateRange}<span>${esc(e.city||e.locality||'')}</span></a>`;
+      }).join('')}${(byDay[d]||[]).length>3?`<div class="cal-more">+${byDay[d].length-3} altri</div>`:''}</div>`;
     }
     $('#eventsView').innerHTML=`<div class="calendar-shell"><div class="calendar-top"><button class="cal-nav" id="prevMonth" type="button">←</button><h2>${monthLabel}</h2><button class="cal-nav" id="nextMonth" type="button">→</button></div><div class="calendar-scroll"><div class="calendar"><div class="cal-head">Lun</div><div class="cal-head">Mar</div><div class="cal-head">Mer</div><div class="cal-head">Gio</div><div class="cal-head">Ven</div><div class="cal-head">Sab</div><div class="cal-head">Dom</div>${cells}</div></div></div>`;
     $('#prevMonth').onclick=()=>{calendarDate=new Date(y,m-1,1);renderCalendar(filteredEvents())};

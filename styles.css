@@ -25,3 +25,29 @@
 .agenda-date-range>b{font-size:18px;line-height:1;font-weight:700;margin-bottom:3px}
 .agenda-date-range>small{grid-column:1/-1;margin-top:5px}
 @media(max-width:700px){.agenda-date-range{min-width:66px}.agenda-date-range>span{font-size:27px}.date-range{gap:4px}}
+
+/* Calendario: eventi su più giornate */
+.cal-event.range-start,
+.cal-event.range-middle,
+.cal-event.range-end {
+  border-left: 4px solid #ef262d;
+}
+.cal-event.range-middle {
+  background: #fff0f1;
+}
+.cal-event.range-end {
+  background: #ffe8ea;
+}
+.cal-range {
+  display: block;
+  margin: 3px 0 2px;
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #ef262d;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+@media (max-width: 768px) {
+  .cal-range { font-size: 10px; }
+}
