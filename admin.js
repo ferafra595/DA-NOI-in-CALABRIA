@@ -16,31 +16,58 @@ function events(P){P.innerHTML=`<section class="panel"><div class="section-head"
 function uploadField(name,value,label='Immagine'){return `<div class="field full"><label>${label}</label><div style="display:flex;gap:8px;align-items:center"><input name="${name}" value="${esc(value||'')}" style="flex:1"><input type="file" accept="image/*" data-upload="${name}"><button type="button" class="btn btn-outline upload-btn" data-target="${name}">Carica</button></div>${value?`<img src="${esc(value)}" style="margin-top:10px;width:180px;height:110px;object-fit:cover;border-radius:12px">`:''}</div>`}
 function provinceSelect(v=''){return `<select name="province">${provinces.map(p=>`<option ${p===v?'selected':''}>${p}</option>`).join('')}</select>`}
 function categorySelect(v=''){return `<select name="category">${categories.map(p=>`<option ${p===v?'selected':''}>${p}</option>`).join('')}</select>`}
-function eventForm(e={}){document.querySelector('#panel').innerHTML=`<section class="panel"><div class="section-head"><div><h1>${e.id?'Modifica evento':'Nuovo evento'}</h1><p>Tutte le informazioni della scheda evento.</p></div><button class="btn btn-outline" id="back">Indietro</button></div><form class="admin-like-form" id="f"><div class="field"><label>Titolo *</label><input name="title" value="${esc(e.title||'')}" required></div><div class="field"><label>Categoria *</label>${categorySelect(e.category)}</div><div class="field"><label>Provincia</label>${provinceSelect(e.province)}</div><div class="field"><label>Territorio / area</label><input name="area" value="${esc(e.area||'')}"></div><div class="field"><label>Comune</label><input name="city" value="${esc(e.city||'')}"></div><div class="field"><label>Località</label><input name="locality" value="${esc(e.locality||'')}"></div><div class="field full"><label>Indirizzo</label><input name="address" value="${esc(e.address||'')}"></div><div class="field"><label>Data inizio *</label><input type="date" name="start_date" value="${esc(e.start_date||'')}" required></div><div class="field"><label>Data fine</label><input type="date" name="end_date" value="${esc(e.end_date||'')}"></div><div class="field"><label>Ora</label><input type="time" name="start_time" value="${esc(e.start_time||'')}"></div><div class="field"><label>Ingresso</label><select name="free"><option value="1" ${Number(e.free)!==0?'selected':''}>Gratuito</option><option value="0" ${Number(e.free)===0?'selected':''}>A pagamento</option></select></div>${uploadField('image',e.image,'Foto copertina')}${uploadField('poster_url',e.poster_url,'Locandina')}<div class="field full"><label>Descrizione</label><textarea name="description">${esc(e.description||'')}</textarea></div><div class="field full"><label>Programma</label><textarea name="program" placeholder="Puoi scrivere il programma completo delle giornate">${esc(typeof e.program==='string'?e.program:'')}</textarea></div><div class="field"><label>Organizzatore</label><input name="organizer" value="${esc(e.organizer||'')}"></div><div class="field"><label>Telefono</label><input name="phone" value="${esc(e.phone||'')}"></div><div class="field"><label>Email</label><input type="email" name="email" value="${esc(e.email||'')}"></div><div class="field"><label>Social / sito</label><input name="social" value="${esc(e.social||'')}"></div><div class="field"><label><input type="checkbox" name="featured" ${e.featured?'checked':''}> In evidenza</label></div><div class="field"><label><input type="checkbox" name="weekend" ${e.weekend?'checked':''}> Questo weekend</label></div><div class="field full"><button class="btn btn-accent">Salva evento</button></div></form></section>`;document.querySelector('#back').onclick=()=>shell('events');bindUploads();document.querySelector('#f').onsubmit=async ev=>{
-  ev.preventDefault();
-  const form=ev.target;
-  const btn=form.querySelector('button[type=\"submit\"],button.btn-accent');
-  const oldText=btn?.textContent||'Salva evento';
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Salvataggio...'}
-    const fd=new FormData(form),o=Object.fromEntries(fd);
-    o.featured=fd.has('featured')?1:0;
-    o.weekend=fd.has('weekend')?1:0;
-    o.status='published';
-    const result=await api(e.id?`/api/admin/events/${e.id}`:'/api/admin/events',{
-      method:e.id?'PATCH':'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(o)
-    });
-    await load();
-    shell('events');
-    setTimeout(()=>alert(e.id?'Evento aggiornato correttamente.':'Evento salvato e pubblicato correttamente.'),50);
-  }catch(err){
-    console.error('Errore salvataggio evento:',err);
-    alert('Errore salvataggio evento: '+(err?.message||'errore sconosciuto'));
-    if(btn){btn.disabled=false;btn.textContent=oldText}
+function parseProgramDays(raw,startDate,endDate){
+  if(Array.isArray(raw)) return raw;
+  if(typeof raw==='string'&&raw.trim()){
+    try{const p=JSON.parse(raw);if(Array.isArray(p))return p}catch{}
+    if(startDate)return [{date:startDate,text:raw}];
   }
-}}
+  return [];
+}
+function datesBetween(start,end){
+  if(!start)return [];
+  const a=new Date(start+'T12:00:00'),b=new Date((end||start)+'T12:00:00');
+  if(Number.isNaN(a.getTime())||Number.isNaN(b.getTime())||b<a)return [start];
+  const out=[];let d=new Date(a);let guard=0;
+  while(d<=b&&guard<31){out.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1);guard++}
+  return out;
+}
+function adminDateLabel(iso){
+  if(!iso)return '';
+  return new Intl.DateTimeFormat('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(iso+'T12:00:00'));
+}
+function eventForm(e={}){
+  const existingProgram=parseProgramDays(e.program,e.start_date,e.end_date);
+  document.querySelector('#panel').innerHTML=`<section class="panel"><div class="section-head"><div><h1>${e.id?'Modifica evento':'Nuovo evento'}</h1><p>Tutte le informazioni della scheda evento.</p></div><button class="btn btn-outline" id="back">Indietro</button></div><form class="admin-like-form" id="f"><div class="field"><label>Titolo *</label><input name="title" value="${esc(e.title||'')}" required></div><div class="field"><label>Categoria *</label>${categorySelect(e.category)}</div><div class="field"><label>Provincia</label>${provinceSelect(e.province)}</div><div class="field"><label>Territorio / area</label><input name="area" value="${esc(e.area||'')}"></div><div class="field"><label>Comune</label><input name="city" value="${esc(e.city||'')}"></div><div class="field"><label>Località</label><input name="locality" value="${esc(e.locality||'')}"></div><div class="field full"><label>Indirizzo</label><input name="address" value="${esc(e.address||'')}"></div><div class="field"><label>Data inizio *</label><input type="date" name="start_date" value="${esc(e.start_date||'')}" required></div><div class="field"><label>Data fine</label><input type="date" name="end_date" value="${esc(e.end_date||'')}"></div><div class="field"><label>Ora indicativa</label><input type="time" name="start_time" value="${esc(e.start_time||'')}"></div><div class="field"><label>Ingresso</label><select name="free"><option value="1" ${Number(e.free)!==0?'selected':''}>Gratuito</option><option value="0" ${Number(e.free)===0?'selected':''}>A pagamento</option></select></div>${uploadField('image',e.image,'Foto copertina')}${uploadField('poster_url',e.poster_url,'Locandina')}<div class="field full"><label>Descrizione</label><textarea name="description">${esc(e.description||'')}</textarea></div><div class="field full"><div class="program-admin-head"><div><label>Programma per giornata</label><small>Imposta data inizio e fine: qui comparirà automaticamente un riquadro per ogni giorno.</small></div></div><div id="programDays" class="program-admin-days"></div></div><div class="field"><label>Organizzatore</label><input name="organizer" value="${esc(e.organizer||'')}"></div><div class="field"><label>Telefono</label><input name="phone" value="${esc(e.phone||'')}"></div><div class="field"><label>Email</label><input type="email" name="email" value="${esc(e.email||'')}"></div><div class="field"><label>Social / sito</label><input name="social" value="${esc(e.social||'')}"></div><div class="field"><label><input type="checkbox" name="featured" ${e.featured?'checked':''}> In evidenza</label></div><div class="field"><label><input type="checkbox" name="weekend" ${e.weekend?'checked':''}> Questo weekend</label></div><div class="field full"><button class="btn btn-accent" type="submit">Salva evento</button></div></form></section>`;
+  document.querySelector('#back').onclick=()=>shell('events');
+  bindUploads();
+  const f=document.querySelector('#f'),box=document.querySelector('#programDays');
+  const renderProgramDays=()=>{
+    const old={};box.querySelectorAll('[data-program-date]').forEach(x=>old[x.dataset.programDate]=x.value);
+    const start=f.elements.start_date.value,end=f.elements.end_date.value||start;
+    const days=datesBetween(start,end);
+    if(!days.length){box.innerHTML='<div class="notice">Seleziona almeno la data di inizio per inserire il programma.</div>';return}
+    box.innerHTML=days.map((date,i)=>{
+      const previous=old[date] ?? existingProgram.find(x=>x.date===date)?.text ?? (existingProgram.length===1&&days.length===1?existingProgram[0].text:'');
+      return `<section class="program-admin-day"><div class="program-admin-date"><span>${String(i+1).padStart(2,'0')}</span><div><b>${esc(adminDateLabel(date))}</b><small>${esc(date)}</small></div></div><textarea data-program-date="${date}" placeholder="Esempio:\n18:00 Apertura stand gastronomici\n21:30 Concerto in piazza">${esc(previous)}</textarea></section>`
+    }).join('');
+  };
+  f.elements.start_date.addEventListener('change',renderProgramDays);
+  f.elements.end_date.addEventListener('change',renderProgramDays);
+  renderProgramDays();
+  f.onsubmit=async ev=>{
+    ev.preventDefault();
+    const btn=f.querySelector('button[type="submit"]'),oldText=btn.textContent;
+    try{
+      btn.disabled=true;btn.textContent='Salvataggio...';
+      const fd=new FormData(f),o=Object.fromEntries(fd);
+      o.featured=fd.has('featured')?1:0;o.weekend=fd.has('weekend')?1:0;o.status='published';
+      o.program=JSON.stringify([...box.querySelectorAll('[data-program-date]')].map(x=>({date:x.dataset.programDate,text:x.value.trim()})).filter(x=>x.text));
+      await api(e.id?`/api/admin/events/${e.id}`:'/api/admin/events',{method:e.id?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});
+      await load();shell('events');setTimeout(()=>alert(e.id?'Evento aggiornato correttamente.':'Evento salvato e pubblicato correttamente.'),50);
+    }catch(err){console.error('Errore salvataggio evento:',err);alert('Errore salvataggio evento: '+(err?.message||'errore sconosciuto'));btn.disabled=false;btn.textContent=oldText}
+  };
+}
 function subs(P){P.innerHTML=`<section class="panel"><h1>Segnalazioni</h1><table class="admin-table"><thead><tr><th>Evento</th><th>Contatto</th><th>Data</th><th>Stato</th><th></th></tr></thead><tbody>${data.submissions.map(s=>`<tr><td><b>${esc(s.title)}</b><br><small>${esc(s.city)} · ${esc(s.province)}</small></td><td>${esc(s.email)}</td><td>${esc(s.start_date)}</td><td>${esc(s.status)}</td><td>${s.status==='pending'?`<button class="btn btn-accent approve" data-id="${s.id}">Approva</button>`:''} <button class="btn btn-outline del-sub" data-id="${s.id}">Elimina</button></td></tr>`).join('')}</tbody></table></section>`;document.querySelectorAll('.approve').forEach(b=>b.onclick=async()=>{await api(`/api/admin/submissions/${b.dataset.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved',create_event:true})});await load();shell('submissions')});document.querySelectorAll('.del-sub').forEach(b=>b.onclick=async()=>{if(confirm('Eliminare definitivamente questa segnalazione?')){await api(`/api/admin/submissions/${b.dataset.id}`,{method:'DELETE'});await load();shell('submissions')}})}
 function formBuilder(P){P.innerHTML=`<section class="panel"><div class="section-head"><div><h1>Modulo “Segnala un evento”</h1><p>Puoi aggiungere, modificare, nascondere o eliminare i campi. Le 5 province calabresi sono sempre disponibili nel campo Provincia.</p></div><button class="btn btn-accent" id="newField">Nuovo campo</button></div><table class="admin-table"><thead><tr><th>Campo</th><th>Tipo</th><th>Obbligatorio</th><th>Attivo</th><th></th></tr></thead><tbody>${data.fields.map(f=>`<tr><td><b>${esc(f.label)}</b><br><small>${esc(f.field_key)}</small></td><td>${esc(f.field_type)}</td><td>${f.required?'Sì':'No'}</td><td>${f.active?'Sì':'No'}</td><td>${rowButtons('submission-fields',f.id)}</td></tr>`).join('')}</tbody></table></section>`;document.querySelector('#newField').onclick=()=>fieldForm();bindEditDelete('submission-fields',id=>fieldForm(data.fields.find(x=>x.id==id)))}
 function fieldForm(f={}){document.querySelector('#panel').innerHTML=`<section class="panel"><h1>${f.id?'Modifica':'Nuovo'} campo</h1><form class="admin-like-form" id="f"><div class="field"><label>Chiave tecnica *</label><input name="field_key" value="${esc(f.field_key||'')}" ${f.id?'readonly':''} required></div><div class="field"><label>Etichetta *</label><input name="label" value="${esc(f.label||'')}" required></div><div class="field"><label>Tipo</label><select name="field_type">${['text','textarea','select','province','date','time','email','tel','url'].map(t=>`<option ${t===f.field_type?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label>Ordine</label><input type="number" name="sort_order" value="${esc(f.sort_order||0)}"></div><div class="field full"><label>Placeholder</label><input name="placeholder" value="${esc(f.placeholder||'')}"></div><div class="field full"><label>Opzioni select (separate da |)</label><input name="options" value="${esc(f.options||'')}"></div><div class="field"><label><input type="checkbox" name="required" ${f.required?'checked':''}> Obbligatorio</label></div><div class="field"><label><input type="checkbox" name="active" ${f.id?(f.active?'checked':''):'checked'}> Visibile</label></div><div class="field full"><button class="btn btn-accent">Salva</button></div></form></section>`;document.querySelector('#f').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target),o=Object.fromEntries(fd);o.required=fd.has('required')?1:0;o.active=fd.has('active')?1:0;await api(f.id?`/api/admin/submission-fields/${f.id}`:'/api/admin/submission-fields',{method:f.id?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});await load();shell('form')}}
