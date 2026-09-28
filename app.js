@@ -12,7 +12,7 @@ const keySlug=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\
 const img=(src,fallback='https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=80')=>src||fallback;
 async function load(){const req=async(u,k)=>{try{const j=await api(u);state[k]=j.items||j}catch{}};await Promise.all([req('/api/events','events'),req('/api/places','places'),req('/api/partners','partners'),req('/api/territories','territories'),req('/api/submission-fields','fields'),req('/api/settings','settings')]);applyBrand();route()}
 function applyBrand(){const b=$('.brand img');if(b&&state.settings.logo_black)b.src=state.settings.logo_black;const root=document.documentElement;root.style.setProperty('--logo-desktop-width',(Number(state.settings.logo_header_width)||210)+'px');root.style.setProperty('--logo-mobile-width',(Number(state.settings.logo_header_width_mobile)||155)+'px');root.style.setProperty('--logo-footer-width',(Number(state.settings.logo_footer_width)||190)+'px')}
-function footer(){return `<footer class="footer"><div class="container footer-grid"><img src="${esc(state.settings.logo_white||'/assets/logo-white.png')}" alt="Marchesato in Festa"><div class="footer-links"><a href="#/eventi">Eventi</a><a href="#/calendario">Calendario</a><a href="#/territorio">Territorio</a><a href="#/mangiare">Dove mangiare</a><a href="#/dormire">Dove dormire</a><a href="#/partner">Partner</a><a href="/admin">Area riservata</a></div><div>© 2026 Marchesato in Festa</div></div></footer>`}
+function footer(){return `<footer class="footer"><div class="container footer-grid"><img src="${esc(state.settings.logo_white||'/assets/logo-white.png')}" alt="Marchesato in Festa"><div class="footer-links"><a href="#/eventi">Eventi</a><a href="#/territorio">Territorio</a><a href="#/mangiare">Dove mangiare</a><a href="#/dormire">Dove dormire</a><a href="#/partner">Partner</a><a href="/admin">Area riservata</a></div><div>© 2026 Marchesato in Festa</div></div></footer>`}
 function card(e){return `<a class="event-card" href="#/evento/${encodeURIComponent(e.slug)}"><img src="${esc(img(e.image))}" alt="${esc(e.title)}"><div class="event-card-body"><span class="badge">${esc(e.category)}</span><div class="date-big">${day(e.start_date)}<small>${month(e.start_date)}</small></div><h3>${esc(e.title)}</h3><div class="meta">${esc(e.locality||e.city)}${e.city&&e.locality?` · ${esc(e.city)}`:''}</div></div></a>`}
 function home(){const weekend=state.events.filter(e=>e.weekend).slice(0,6),upcoming=state.events.slice(0,7),hero=state.settings.hero_image||'';app.innerHTML=`<section class="hero"><div class="hero-bg" style="${hero?`background-image:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.18)),url('${esc(hero)}')`:''}"></div><div class="hero-content"><div class="eyebrow">EVENTI · TRADIZIONI · TERRITORIO</div><h1>Scopri cosa succede intorno a te.</h1><p>Feste, sagre, concerti ed eventi tra Marchesato, provincia di Crotone e Catanzaro.</p><form class="searchbar" id="heroSearch"><input placeholder="Cerca evento, comune o località"><button>⌕</button></form><div class="chips">${cats.slice(0,6).map(c=>`<a class="chip" href="#/eventi?cat=${encodeURIComponent(c)}">${c}</a>`).join('')}</div></div></section>
 <section class="section compact"><div class="container"><div class="section-head"><div><h2>Questo weekend</h2><p>Scopri cosa fare da venerdì a domenica.</p></div><a class="text-link" href="#/eventi">Vedi tutti →</a></div><div class="scroll-row">${(weekend.length?weekend:upcoming.slice(0,4)).map(card).join('')}</div></div></section>
@@ -21,7 +21,80 @@ function home(){const weekend=state.events.filter(e=>e.weekend).slice(0,6),upcom
 <section class="section alt"><div class="container"><div class="section-head"><div><h2>Esplora il territorio</h2><p>Comuni, eventi e tradizioni.</p></div><a class="text-link" href="#/territorio">Vedi tutti →</a></div><div class="territory-grid">${(state.territories.length?state.territories.slice(0,6):[{id:0,name:'Marchesato',province:'Crotone',image:'https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1000&q=80'}]).map(t=>`<a class="territory-card" href="#/territorio/${t.id}"><img src="${esc(img(t.image))}"><div><h3>${esc(t.name)}</h3><small>${esc(t.province)}</small></div></a>`).join('')}</div></div></section>
 <section class="section"><div class="container split-banner"><a class="feature-banner" href="#/mangiare"><img src="${esc(state.settings.eat_banner||'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80')}"><div><h3>Dove mangiare</h3><p>Scopri i sapori del territorio.</p></div></a><a class="feature-banner" href="#/dormire"><img src="${esc(state.settings.sleep_banner||'https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1200&q=80')}"><div><h3>Dove dormire</h3><p>Trova la sistemazione giusta.</p></div></a></div></section>
 ${footer()}`;$('#heroSearch').onsubmit=e=>{e.preventDefault();location.hash='#/cerca?q='+encodeURIComponent(e.target.querySelector('input').value)}}
-function eventsPage(){const q=new URLSearchParams((location.hash.split('?')[1]||'')),cat=q.get('cat')||'',term=(q.get('q')||'').toLowerCase();let list=state.events.filter(e=>(!cat||e.category===cat)&&(!term||[e.title,e.city,e.locality,e.category].join(' ').toLowerCase().includes(term)));app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">AGENDA</div><h1>Eventi</h1><p>Tutto quello che succede sul territorio, in un solo posto.</p></div></section><section class="section"><div class="container"><div class="filterbar"><input id="q" placeholder="Cerca..." value="${esc(q.get('q')||'')}"><select id="cat"><option value="">Tutte le categorie</option>${cats.map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select><select id="prov"><option value="">Tutte le province</option>${provinces.map(p=>`<option>${p}</option>`).join('')}</select></div><div class="grid-events" id="eventGrid">${list.map(card).join('')||'<div class="empty">Nessun evento trovato.</div>'}</div></div></section>${footer()}`;const refresh=()=>{const qq=$('#q').value.toLowerCase(),cc=$('#cat').value,pp=$('#prov').value;const l=state.events.filter(e=>(!cc||e.category===cc)&&(!pp||e.province===pp)&&(!qq||[e.title,e.city,e.locality,e.category].join(' ').toLowerCase().includes(qq)));$('#eventGrid').innerHTML=l.map(card).join('')||'<div class="empty">Nessun evento trovato.</div>'};['q','cat','prov'].forEach(id=>$('#'+id).addEventListener(id==='q'?'input':'change',refresh))}
+function eventsPage(initialView='list'){
+  const q=new URLSearchParams((location.hash.split('?')[1]||''));
+  const cat=q.get('cat')||'';
+  const term=(q.get('q')||'').toLowerCase();
+  let currentView=q.get('view')||initialView;
+  let calendarDate=getCalendarStart();
+
+  const filteredEvents=()=>{
+    const qq=($('#q')?.value||term).toLowerCase();
+    const cc=$('#cat')?.value||cat;
+    const pp=$('#prov')?.value||'';
+    return state.events.filter(e=>(!cc||e.category===cc)&&(!pp||e.province===pp)&&(!qq||[e.title,e.city,e.locality,e.category].join(' ').toLowerCase().includes(qq)));
+  };
+
+  app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">AGENDA</div><h1>Eventi</h1><p>Scopri gli eventi del territorio e scegli come visualizzarli.</p></div></section>
+  <section class="section"><div class="container">
+    <div class="events-toolbar">
+      <div class="view-toggle" role="group" aria-label="Visualizzazione eventi">
+        <button type="button" class="view-btn ${currentView==='list'?'active':''}" data-view="list">☰ Lista</button>
+        <button type="button" class="view-btn ${currentView==='calendar'?'active':''}" data-view="calendar">▦ Calendario</button>
+      </div>
+    </div>
+    <div class="filterbar"><input id="q" placeholder="Cerca..." value="${esc(q.get('q')||'')}"><select id="cat"><option value="">Tutte le categorie</option>${cats.map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select><select id="prov"><option value="">Tutte le province</option>${provinces.map(p=>`<option>${p}</option>`).join('')}</select></div>
+    <div id="eventsView"></div>
+  </div></section>${footer()}`;
+
+  function getCalendarStart(){
+    const sorted=[...state.events].filter(e=>e.start_date).sort((a,b)=>a.start_date.localeCompare(b.start_date));
+    const now=new Date();
+    const future=sorted.find(e=>new Date(e.start_date+'T12:00:00')>=new Date(now.getFullYear(),now.getMonth(),1));
+    const base=future?new Date(future.start_date+'T12:00:00'):now;
+    return new Date(base.getFullYear(),base.getMonth(),1);
+  }
+
+  function renderList(list){
+    $('#eventsView').innerHTML=`<div class="grid-events">${list.map(card).join('')||'<div class="empty">Nessun evento trovato.</div>'}</div>`;
+  }
+
+  function renderCalendar(list){
+    const y=calendarDate.getFullYear(),m=calendarDate.getMonth();
+    const first=new Date(y,m,1),days=new Date(y,m+1,0).getDate();
+    const offset=(first.getDay()+6)%7;
+    const monthLabel=new Intl.DateTimeFormat('it-IT',{month:'long',year:'numeric'}).format(first);
+    const byDay={};
+    list.forEach(e=>{
+      if(!e.start_date)return;
+      const d=new Date(e.start_date+'T12:00:00');
+      if(d.getFullYear()===y&&d.getMonth()===m){
+        const n=d.getDate();(byDay[n]||(byDay[n]=[])).push(e);
+      }
+    });
+    let cells='';
+    for(let i=0;i<offset;i++)cells+='<div class="cal-cell muted"></div>';
+    for(let d=1;d<=days;d++){
+      const ev=(byDay[d]||[]).slice(0,3);
+      cells+=`<div class="cal-cell"><div class="num">${d}</div>${ev.map(e=>`<a class="cal-event" href="#/evento/${encodeURIComponent(e.slug)}" title="${esc(e.title)}"><b>${esc(e.title)}</b><span>${esc(e.city||e.locality||'')}</span></a>`).join('')}${(byDay[d]||[]).length>3?`<div class="cal-more">+${byDay[d].length-3} altri</div>`:''}</div>`;
+    }
+    $('#eventsView').innerHTML=`<div class="calendar-shell"><div class="calendar-top"><button class="cal-nav" id="prevMonth" type="button">←</button><h2>${monthLabel}</h2><button class="cal-nav" id="nextMonth" type="button">→</button></div><div class="calendar-scroll"><div class="calendar"><div class="cal-head">Lun</div><div class="cal-head">Mar</div><div class="cal-head">Mer</div><div class="cal-head">Gio</div><div class="cal-head">Ven</div><div class="cal-head">Sab</div><div class="cal-head">Dom</div>${cells}</div></div></div>`;
+    $('#prevMonth').onclick=()=>{calendarDate=new Date(y,m-1,1);renderCalendar(filteredEvents())};
+    $('#nextMonth').onclick=()=>{calendarDate=new Date(y,m+1,1);renderCalendar(filteredEvents())};
+  }
+
+  const refresh=()=>{
+    const list=filteredEvents();
+    currentView==='calendar'?renderCalendar(list):renderList(list);
+  };
+  $$('.view-btn').forEach(b=>b.onclick=()=>{
+    currentView=b.dataset.view;
+    $$('.view-btn').forEach(x=>x.classList.toggle('active',x===b));
+    refresh();
+  });
+  ['q','cat','prov'].forEach(id=>$('#'+id).addEventListener(id==='q'?'input':'change',refresh));
+  refresh();
+}
 function eventDetail(slug){const e=state.events.find(x=>x.slug===decodeURIComponent(slug));if(!e)return notFound();const nearby=state.places.filter(p=>!e.city||p.city===e.city).slice(0,4);app.innerHTML=`<section class="detail-hero"><img src="${esc(img(e.image))}"><div class="detail-title"><span class="badge">${esc(e.category)}</span><h1>${esc(e.title)}</h1><div>${fmt(e.start_date)} · ${esc(e.city)}${e.locality?` · ${esc(e.locality)}`:''}</div></div></section><div class="container detail-layout"><article><h2>Informazioni</h2><p>${esc(e.description||'')}</p>${e.program?`<h2>Programma</h2><div class="program-day"><p style="white-space:pre-line">${esc(e.program)}</p></div>`:''}${e.poster_url?`<h2>Locandina</h2><img src="${esc(e.poster_url)}" style="max-width:700px;border-radius:20px">`:''}${nearby.length?`<h2 style="margin-top:45px">Dove mangiare e dormire</h2><div class="grid-events">${nearby.map(placeCard).join('')}</div>`:''}</article><aside><div class="info-card"><div class="info-row"><b>Quando</b><br>${fmt(e.start_date)}${e.end_date&&e.end_date!==e.start_date?` — ${fmt(e.end_date)}`:''}</div><div class="info-row"><b>Dove</b><br>${esc(e.address||e.locality||e.city)}</div>${e.start_time?`<div class="info-row"><b>Ora</b><br>${esc(e.start_time)}</div>`:''}${e.organizer?`<div class="info-row"><b>Organizzato da</b><br>${esc(e.organizer)}</div>`:''}${e.phone?`<div class="info-row"><a class="btn btn-dark" href="tel:${esc(e.phone)}">Chiama</a></div>`:''}</div></aside></div>${footer()}`}
 function placeCard(p){return `<a class="event-card" href="#/attivita/${p.id}"><img src="${esc(img(p.image,'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1000&q=80'))}"><div class="event-card-body"><span class="badge">${esc(p.type)}</span><h3>${esc(p.name)}</h3><div class="meta">${esc(p.city)} · ${esc(p.province)}</div></div></a>`}
 function placesPage(type){const list=state.places.filter(p=>p.type===type);app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">TERRITORIO</div><h1>${type==='dormire'?'Dove dormire':'Dove mangiare'}</h1><p>Attività e strutture del territorio, con schede complete e contatti.</p></div></section><section class="section"><div class="container"><div class="grid-events">${list.map(placeCard).join('')||'<div class="empty">Nessuna attività inserita.</div>'}</div></div></section>${footer()}`}
@@ -32,7 +105,7 @@ function territoryPage(){app.innerHTML=`<section class="page-hero"><div class="c
 function territoryDetail(id){const t=state.territories.find(x=>String(x.id)===String(id));if(!t)return territoryPage();const ev=state.events.filter(e=>e.area===t.name||e.city===t.name);app.innerHTML=`<section class="detail-hero"><img src="${esc(img(t.image))}"><div class="detail-title"><span class="badge">${esc(t.province)}</span><h1>${esc(t.name)}</h1></div></section><section class="section"><div class="container"><p style="max-width:800px;font-size:18px">${esc(t.description||'')}</p><div class="section-head" style="margin-top:45px"><h2>Eventi</h2></div><div class="grid-events">${ev.map(card).join('')||'<div class="empty">Nessun evento in programma.</div>'}</div></div></section>${footer()}`}
 function reportPage(){const fields=state.fields.length?state.fields:[{field_key:'title',label:'Nome evento',field_type:'text',required:1},{field_key:'province',label:'Provincia',field_type:'province',required:1},{field_key:'city',label:'Comune',field_type:'text',required:1},{field_key:'start_date',label:'Data inizio',field_type:'date',required:1},{field_key:'email',label:'Email',field_type:'email',required:1}];app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">COLLABORA</div><h1>Segnala un evento</h1><p>Inviaci le informazioni. La segnalazione verrà verificata prima della pubblicazione.</p></div></section><section class="section"><div class="container"><form class="report-form" id="report">${fields.map(fieldHtml).join('')}<div class="field full"><button class="btn btn-accent">Invia segnalazione</button></div></form><div id="msg"></div></div></section>${footer()}`;$('#report').onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target));const r=await fetch('/api/submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});if(r.ok){e.target.reset();$('#msg').innerHTML='<div class="notice" style="margin-top:16px">Segnalazione ricevuta. La verificheremo prima della pubblicazione.</div>'}else $('#msg').innerHTML='<div class="notice" style="margin-top:16px">Controlla i campi obbligatori.</div>'}}
 function fieldHtml(f){const req=f.required?'required':'',ph=esc(f.placeholder||'');if(f.field_type==='textarea')return `<div class="field full"><label>${esc(f.label)}${f.required?' *':''}</label><textarea name="${esc(f.field_key)}" placeholder="${ph}" ${req}></textarea></div>`;if(f.field_type==='province')return `<div class="field"><label>${esc(f.label)}${f.required?' *':''}</label><select name="${esc(f.field_key)}" ${req}><option value="">Seleziona</option>${provinces.map(p=>`<option>${p}</option>`).join('')}</select></div>`;if(f.field_type==='select'){const opts=String(f.options||'').split('|').filter(Boolean);return `<div class="field"><label>${esc(f.label)}${f.required?' *':''}</label><select name="${esc(f.field_key)}" ${req}><option value="">Seleziona</option>${opts.map(p=>`<option>${esc(p)}</option>`).join('')}</select></div>`}return `<div class="field"><label>${esc(f.label)}${f.required?' *':''}</label><input type="${esc(f.field_type||'text')}" name="${esc(f.field_key)}" placeholder="${ph}" ${req}></div>`}
-function calendarPage(){eventsPage();$('.page-hero h1').textContent='Calendario';$('.page-hero p').textContent='Consulta gli eventi per data, categoria e territorio.'}
+function calendarPage(){eventsPage('calendar')}
 function searchPage(){eventsPage();$('.page-hero h1').textContent='Cerca';setTimeout(()=>$('#q')?.focus(),50)}
 function notFound(){app.innerHTML=`<section class="page-hero"><div class="container"><h1>Pagina non trovata</h1><a class="btn btn-light" href="#/">Torna alla Home</a></div></section>${footer()}`}
 function route(){document.querySelector('#mobileMenu')?.classList.remove('open');const h=location.hash.replace(/^#\/?/,'')||'',parts=h.split('?')[0].split('/');if(!h)return home();if(parts[0]==='eventi')return eventsPage();if(parts[0]==='evento')return eventDetail(parts[1]);if(parts[0]==='calendario')return calendarPage();if(parts[0]==='territorio'&&parts[1])return territoryDetail(parts[1]);if(parts[0]==='territorio')return territoryPage();if(parts[0]==='mangiare')return placesPage('mangiare');if(parts[0]==='dormire')return placesPage('dormire');if(parts[0]==='attivita')return placeDetail(parts[1]);if(parts[0]==='partner'&&parts[1])return partnerDetail(parts[1]);if(parts[0]==='partner')return partnersPage();if(parts[0]==='segnala')return reportPage();if(parts[0]==='cerca')return searchPage();notFound()}
