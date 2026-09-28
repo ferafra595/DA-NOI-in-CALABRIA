@@ -43,8 +43,26 @@ export async function onRequest({request,env,params}){
   if(path.startsWith('/admin/')){const d=await must(request,env);if(d)return d}
   if(method==='GET'&&path==='/admin/dashboard'){const q=async s=>(await env.DB.prepare(s).first())?.c||0;return json({events:await q('SELECT COUNT(*) c FROM events'),upcoming:await q("SELECT COUNT(*) c FROM events WHERE start_date>=date('now') AND status='published'"),pending:await q("SELECT COUNT(*) c FROM submissions WHERE status='pending'"),places:await q('SELECT COUNT(*) c FROM places'),partners:await q('SELECT COUNT(*) c FROM partners'),territories:await q('SELECT COUNT(*) c FROM territories')})}
   if(method==='GET'&&path==='/admin/events'){const r=await env.DB.prepare('SELECT * FROM events ORDER BY start_date DESC').all();return json({items:r.results||[]})}
-  if(method==='POST'&&path==='/admin/events'){const o=eventPayload(await body(request));if(!o.title||!o.start_date||!o.category)return bad('Titolo, categoria e data obbligatori');const slug=await uniqueSlug(env,o.title,o.start_date),cols=['slug',...Object.keys(o)];await env.DB.prepare(`INSERT INTO events(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).bind(slug,...Object.values(o)).run();return json({ok:true},201)}
-  if(path.match(/^\/admin\/events\/\d+$/)){const id=Number(path.split('/').pop());if(method==='PATCH'){const o=eventPayload(await body(request)),slug=await uniqueSlug(env,o.title,o.start_date,id),cols=['slug',...Object.keys(o)];await env.DB.prepare(`UPDATE events SET ${cols.map(c=>`${c}=?`).join(',')},updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(slug,...Object.values(o),id).run();return json({ok:true})}if(method==='DELETE'){await env.DB.prepare('DELETE FROM events WHERE id=?').bind(id).run();return json({ok:true})}}
+  if(method==='POST'&&path==='/admin/events'){
+    const o=eventPayload(await body(request));
+    if(!o.title||!o.start_date||!o.category)return bad('Titolo, categoria e data obbligatori');
+    const slug=await uniqueSlug(env,o.title,o.start_date);
+    const q=`INSERT INTO events (slug,title,category,area,province,city,locality,address,start_date,end_date,start_time,description,program,organizer,phone,email,social,image,poster_url,free,featured,weekend,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+    const r=await env.DB.prepare(q).bind(slug,o.title,o.category,o.area,o.province,o.city,o.locality,o.address,o.start_date,o.end_date,o.start_time,o.description,o.program,o.organizer,o.phone,o.email,o.social,o.image,o.poster_url,o.free,o.featured,o.weekend,o.status).run();
+    return json({ok:true,id:r.meta?.last_row_id||null,slug},201)
+  }
+  if(path.match(/^\/admin\/events\/\d+$/)){
+    const id=Number(path.split('/').pop());
+    if(method==='PATCH'){
+      const o=eventPayload(await body(request));
+      if(!o.title||!o.start_date||!o.category)return bad('Titolo, categoria e data obbligatori');
+      const slug=await uniqueSlug(env,o.title,o.start_date,id);
+      const q=`UPDATE events SET slug=?,title=?,category=?,area=?,province=?,city=?,locality=?,address=?,start_date=?,end_date=?,start_time=?,description=?,program=?,organizer=?,phone=?,email=?,social=?,image=?,poster_url=?,free=?,featured=?,weekend=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`;
+      await env.DB.prepare(q).bind(slug,o.title,o.category,o.area,o.province,o.city,o.locality,o.address,o.start_date,o.end_date,o.start_time,o.description,o.program,o.organizer,o.phone,o.email,o.social,o.image,o.poster_url,o.free,o.featured,o.weekend,o.status,id).run();
+      return json({ok:true,id,slug})
+    }
+    if(method==='DELETE'){await env.DB.prepare('DELETE FROM events WHERE id=?').bind(id).run();return json({ok:true})}
+  }
   if(method==='GET'&&path==='/admin/submissions'){const r=await env.DB.prepare(`SELECT s.*,COALESCE(sp.payload,'{}') payload FROM submissions s LEFT JOIN submission_payloads sp ON sp.submission_id=s.id ORDER BY s.created_at DESC`).all();return json({items:r.results||[]})}
   if(path.match(/^\/admin\/submissions\/\d+$/)){const id=Number(path.split('/').pop());if(method==='DELETE'){await env.DB.batch([env.DB.prepare('DELETE FROM submission_payloads WHERE submission_id=?').bind(id),env.DB.prepare('DELETE FROM submissions WHERE id=?').bind(id)]);return json({ok:true})}if(method==='PATCH'){const o=await body(request),s=await env.DB.prepare('SELECT * FROM submissions WHERE id=?').bind(id).first();if(!s)return bad('Segnalazione non trovata',404);if(o.create_event&&o.status==='approved'){const ev=eventPayload({...s,area:s.province,image:s.poster_url,free:s.price_type!=='A pagamento'}),slug=await uniqueSlug(env,ev.title,ev.start_date),cols=['slug',...Object.keys(ev)];await env.DB.prepare(`INSERT INTO events(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).bind(slug,...Object.values(ev)).run()}await env.DB.prepare('UPDATE submissions SET status=? WHERE id=?').bind(o.status||'pending',id).run();return json({ok:true})}}
   if(method==='GET'&&path==='/admin/partners'){const r=await env.DB.prepare(`SELECT p.*,COALESCE(pp.phone,'') phone,COALESCE(pp.email,'') email,COALESCE(pp.address,'') address,COALESCE(pp.whatsapp,'') whatsapp,COALESCE(pp.facebook,'') facebook,COALESCE(pp.maps_url,'') maps_url FROM partners p LEFT JOIN partner_profiles pp ON pp.partner_id=p.id ORDER BY p.id DESC`).all();return json({items:r.results||[]})}
