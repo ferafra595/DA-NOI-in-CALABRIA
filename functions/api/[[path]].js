@@ -14,6 +14,11 @@ export async function onRequest({request,env,params}){
  if(!env.DB)return bad('Binding D1 DB non configurato',503);
  const url=new URL(request.url),method=request.method.toUpperCase(),path='/' + ((params.path)||[]).join('/');
  try{
+
+  if(method==='GET'&&path==='/settings'){
+   const rows=await env.DB.prepare('SELECT key,value FROM site_settings').all();
+   const settings={};for(const r of rows.results||[])settings[r.key]=r.value;return json({settings});
+  }
   if(method==='GET'&&path==='/events'){
    const rows=await env.DB.prepare("SELECT * FROM events WHERE status='published' ORDER BY start_date ASC, featured DESC").all();return json({items:rows.results||[]});
   }
@@ -30,6 +35,17 @@ export async function onRequest({request,env,params}){
   }
   if(method==='POST'&&path==='/admin/logout')return json({ok:true},200,{'set-cookie':'mif_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'});
   if(path.startsWith('/admin/')){const denied=await requireAdmin(request,env);if(denied)return denied}
+
+  if(method==='GET'&&path==='/admin/settings'){
+   const rows=await env.DB.prepare('SELECT key,value FROM site_settings ORDER BY key').all();
+   const settings={};for(const r of rows.results||[])settings[r.key]=r.value;return json({settings});
+  }
+  if(method==='PATCH'&&path==='/admin/settings'){
+   const o=await body(request),allowed=new Set(['logo_dark','logo_light','hero_image','category_feste_patronali','category_sagre','category_concerti','category_cultura','category_sport','category_bambini','territory_marchesato','territory_crotone','territory_catanzaro','banner_mangiare','banner_dormire']);
+   if(!allowed.has(o.key)||!o.value)return bad('Impostazione non valida');
+   await env.DB.prepare('INSERT INTO site_settings(key,value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP').bind(o.key,o.value).run();
+   return json({ok:true,key:o.key,value:o.value});
+  }
   if(method==='GET'&&path==='/admin/dashboard'){
    const [events,upcoming,pending,places]=await Promise.all([env.DB.prepare('SELECT COUNT(*) c FROM events').first(),env.DB.prepare("SELECT COUNT(*) c FROM events WHERE start_date>=date('now') AND status='published'").first(),env.DB.prepare("SELECT COUNT(*) c FROM submissions WHERE status='pending'").first(),env.DB.prepare('SELECT COUNT(*) c FROM places').first()]);return json({events:events?.c||0,upcoming:upcoming?.c||0,pending:pending?.c||0,places:places?.c||0})
   }
