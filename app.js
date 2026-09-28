@@ -177,10 +177,34 @@ function calendarPage(){eventsPage('calendar')}
 function searchPage(){eventsPage();$('.page-hero h1').textContent='Cerca';setTimeout(()=>$('#q')?.focus(),50)}
 function notFound(){app.innerHTML=`<section class="page-hero"><div class="container"><h1>Pagina non trovata</h1><a class="btn btn-light" href="#/">Torna alla Home</a></div></section>${footer()}`}
 
+
+function placeCard(p){
+  return `<a class="event-card place-card" href="#/attivita/${encodeURIComponent(p.id)}"><img src="${esc(img(p.image,p.type==='dormire'?'https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1000&q=80':'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1000&q=80'))}" alt="${esc(p.name)}"><div class="event-card-body"><span class="badge">${esc(p.type==='dormire'?'Dove dormire':'Dove mangiare')}</span><h3>${esc(p.name)}</h3><div class="meta">${esc(p.city||'')}${p.province?` · ${esc(p.province)}`:''}</div></div></a>`;
+}
+
 function placesPage(type){const list=state.places.filter(p=>p.type===type);app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">TERRITORIO</div><h1>${type==='dormire'?'Dove dormire':'Dove mangiare'}</h1><p>Attività e strutture del territorio, con schede complete e contatti.</p></div></section><section class="section"><div class="container"><div class="grid-events">${list.map(placeCard).join('')||'<div class="empty">Nessuna attività inserita.</div>'}</div></div></section>${footer()}`}
 function placeDetail(id){const p=state.places.find(x=>String(x.id)===String(id));if(!p)return notFound();app.innerHTML=`<section class="detail-hero"><img src="${esc(img(p.image,'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1400&q=80'))}"><div class="detail-title"><span class="badge">${esc(p.type)}</span><h1>${esc(p.name)}</h1><div>${esc(p.city)} · ${esc(p.province)}</div></div></section><div class="container detail-layout"><article><h2>La struttura</h2><p>${esc(p.description||'')}</p></article><aside><div class="info-card">${p.address?`<div class="info-row"><b>Indirizzo</b><br>${esc(p.address)}</div>`:''}${p.phone?`<div class="info-row"><b>Telefono</b><br><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></div>`:''}${p.whatsapp?`<div class="info-row"><a class="btn btn-dark" href="https://wa.me/${esc(p.whatsapp.replace(/\D/g,''))}" target="_blank">WhatsApp</a></div>`:''}${p.instagram?`<div class="info-row"><a href="${esc(p.instagram)}" target="_blank">Instagram →</a></div>`:''}${p.website?`<div class="info-row"><a href="${esc(p.website)}" target="_blank">Sito web →</a></div>`:''}${p.maps_url?`<div class="info-row"><a class="btn btn-accent" href="${esc(p.maps_url)}" target="_blank">Indicazioni</a></div>`:''}</div></aside></div>${footer()}`}
 function partnersPage(){app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">CHI CI SOSTIENE</div><h1>Partner</h1><p>Le realtà che sostengono Marchesato in Festa.</p></div></section><section class="section"><div class="container"><div class="grid-events">${state.partners.map(p=>`<a class="event-card" href="#/partner/${p.id}"><img src="${esc(img(p.image||p.logo,'https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1000&q=80'))}"><div class="event-card-body"><span class="badge">${esc(p.level||'Partner')}</span><h3>${esc(p.name)}</h3></div></a>`).join('')||'<div class="empty">Nessun partner inserito.</div>'}</div></div></section>${footer()}`}
 async function partnerDetail(id){let p=state.partners.find(x=>String(x.id)===String(id));try{p=await api('/api/partners/'+id)}catch{}if(!p)return notFound();app.innerHTML=`<section class="detail-hero"><img src="${esc(img(p.image||p.logo,'https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1400&q=80'))}"><div class="detail-title"><span class="badge">${esc(p.level||'Partner')}</span><h1>${esc(p.name)}</h1></div></section><div class="container detail-layout"><article>${p.logo?`<img src="${esc(p.logo)}" style="max-width:280px;max-height:140px;object-fit:contain;margin-bottom:30px">`:''}<h2>Chi è</h2><p>${esc(p.description||'')}</p></article><aside><div class="info-card">${p.address?`<div class="info-row"><b>Indirizzo</b><br>${esc(p.address)}</div>`:''}${p.phone?`<div class="info-row"><b>Telefono</b><br><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></div>`:''}${p.email?`<div class="info-row"><b>Email</b><br><a href="mailto:${esc(p.email)}">${esc(p.email)}</a></div>`:''}${p.whatsapp?`<div class="info-row"><a class="btn btn-dark" href="https://wa.me/${esc(p.whatsapp.replace(/\D/g,''))}" target="_blank">WhatsApp</a></div>`:''}${p.website?`<div class="info-row"><a href="${esc(p.website)}" target="_blank">Sito web →</a></div>`:''}${p.instagram?`<div class="info-row"><a href="${esc(p.instagram)}" target="_blank">Instagram →</a></div>`:''}${p.facebook?`<div class="info-row"><a href="${esc(p.facebook)}" target="_blank">Facebook →</a></div>`:''}${p.maps_url?`<div class="info-row"><a class="btn btn-accent" href="${esc(p.maps_url)}" target="_blank">Indicazioni</a></div>`:''}</div></aside></div>${footer()}`}
 
-function route(){document.querySelector('#mobileMenu')?.classList.remove('open');const h=location.hash.replace(/^#\/?/,'')||'',parts=h.split('?')[0].split('/');if(!h)return home();if(parts[0]==='eventi')return eventsPage();if(parts[0]==='evento')return eventDetail(parts[1]);if(parts[0]==='calendario')return calendarPage();if(parts[0]==='territorio'&&parts[1])return territoryDetail(parts[1]);if(parts[0]==='territorio')return territoryPage();if(parts[0]==='mangiare')return placesPage('mangiare');if(parts[0]==='dormire')return placesPage('dormire');if(parts[0]==='attivita')return placeDetail(parts[1]);if(parts[0]==='partner'&&parts[1])return partnerDetail(parts[1]);if(parts[0]==='partner')return partnersPage();if(parts[0]==='segnala')return reportPage();if(parts[0]==='cerca')return searchPage();notFound()}
+function route(){
+  document.querySelector('#mobileMenu')?.classList.remove('open');
+  const h=location.hash.replace(/^#\/?/,'')||'';
+  const parts=h.split('?')[0].split('/');
+  const section=(parts[0]||'').toLowerCase();
+  if(!h)return home();
+  if(section==='eventi')return eventsPage();
+  if(section==='evento')return eventDetail(parts[1]);
+  if(section==='calendario')return calendarPage();
+  if(section==='territorio'&&parts[1])return territoryDetail(parts[1]);
+  if(section==='territorio')return territoryPage();
+  if(['mangiare','dove-mangiare','dovemangiare'].includes(section))return placesPage('mangiare');
+  if(['dormire','dove-dormire','dovedormire'].includes(section))return placesPage('dormire');
+  if(section==='attivita')return placeDetail(parts[1]);
+  if(['partner','partners'].includes(section)&&parts[1])return partnerDetail(parts[1]);
+  if(['partner','partners'].includes(section))return partnersPage();
+  if(section==='segnala')return reportPage();
+  if(section==='cerca')return searchPage();
+  notFound();
+}
 $('#menuToggle').onclick=()=>$('#mobileMenu').classList.toggle('open');window.addEventListener('hashchange',route);load();
