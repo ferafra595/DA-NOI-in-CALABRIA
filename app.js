@@ -8,6 +8,14 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=d=>{if(!d)return'';return new Intl.DateTimeFormat('it-IT',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(d+'T12:00:00'))};
 const month=d=>{if(!d)return'';return new Intl.DateTimeFormat('it-IT',{month:'short'}).format(new Date(d+'T12:00:00')).replace('.','').toUpperCase()};
 const day=d=>(d||'').slice(8,10);
+function formatEventRange(e){
+  if(!e?.start_date)return '';
+  const start=e.start_date;
+  const end=e.end_date&&e.end_date!==e.start_date?e.end_date:null;
+  if(!end)return `${day(start)} ${month(start)}`;
+  const sameMonth=month(start)===month(end);
+  return sameMonth?`${day(start)}–${day(end)} ${month(start)}`:`${day(start)} ${month(start)} – ${day(end)} ${month(end)}`;
+}
 const keySlug=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 const img=(src,fallback='https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=80')=>src||fallback;
 async function load(){const req=async(u,k)=>{try{const j=await api(u);state[k]=j.items||j}catch{}};await Promise.all([req('/api/events','events'),req('/api/places','places'),req('/api/partners','partners'),req('/api/territories','territories'),req('/api/submission-fields','fields'),req('/api/settings','settings')]);applyBrand();route()}
