@@ -159,12 +159,36 @@ function renderProgramText(text){
     return `<div class="program-item program-item-no-time"><div class="program-time">•</div><div class="program-desc">${esc(line.replace(/^[-•]\s*/,''))}</div></div>`;
   }).join('');
 }
+// Contenimento delle locandine verticali su schermi stretti.
+// Stili mirati, senza sostituire il foglio CSS esistente o modificare le altre pagine.
+function ensureEventPosterLayout(){
+  if(document.getElementById('marchesato-poster-layout'))return;
+  const style=document.createElement('style');
+  style.id='marchesato-poster-layout';
+  style.textContent=`
+    .detail-layout { min-width:0; }
+    .detail-layout > article { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+    .detail-layout > aside { min-width:0; }
+    .detail-layout .event-poster {
+      display:block; width:100%; max-width:700px; height:auto;
+      object-fit:contain; border-radius:20px;
+    }
+    @media (min-width:981px) {
+      .detail-layout { grid-template-columns:minmax(0, 1fr) minmax(0, 340px); }
+    }
+    @media (max-width:980px) {
+      .detail-layout { grid-template-columns:minmax(0, 1fr); }
+    }
+  `;
+  document.head.appendChild(style);
+}
 function eventDetail(slug){
+  ensureEventPosterLayout();
   const e=state.events.find(x=>x.slug===decodeURIComponent(slug));if(!e)return notFound();
   const nearby=state.places.filter(p=>!e.city||p.city===e.city).slice(0,4);
   const days=parsePublicProgram(e.program,e.start_date);
   const program=days.length?`<section class="event-program"><div class="program-title"><span>PROGRAMMA</span><h2>Giorno per giorno</h2></div><div class="program-days">${days.map((d,i)=>`<article class="program-day-card"><div class="program-day-date"><span class="program-day-number">${String(i+1).padStart(2,'0')}</span><div><small>GIORNO ${i+1}</small><h3>${esc(fullDate(d.date))}</h3></div></div><div class="program-list">${renderProgramText(d.text)}</div></article>`).join('')}</div></section>`:'';
-  app.innerHTML=`<section class="detail-hero"><img src="${esc(img(e.image))}"><div class="detail-title"><span class="badge">${esc(e.category)}</span><h1>${esc(e.title)}</h1><div>${fmt(e.start_date)} · ${esc(e.city)}${e.locality?` · ${esc(e.locality)}`:''}</div></div></section><div class="container detail-layout"><article><h2>Informazioni</h2><p>${esc(e.description||'')}</p>${program}${e.poster_url?`<h2>Locandina</h2><img src="${esc(e.poster_url)}" style="max-width:700px;border-radius:20px">`:''}${nearby.length?`<h2 style="margin-top:45px">Dove mangiare e dormire</h2><div class="grid-events">${nearby.map(placeCard).join('')}</div>`:''}</article><aside><div class="info-card"><div class="info-row"><b>Quando</b><br>${fmt(e.start_date)}${e.end_date&&e.end_date!==e.start_date?` — ${fmt(e.end_date)}`:''}</div><div class="info-row"><b>Dove</b><br>${esc(e.address||e.locality||e.city)}</div>${e.start_time?`<div class="info-row"><b>Ora</b><br>${esc(e.start_time)}</div>`:''}${e.organizer?`<div class="info-row"><b>Organizzato da</b><br>${esc(e.organizer)}</div>`:''}${e.phone?`<div class="info-row"><a class="btn btn-dark" href="tel:${esc(e.phone)}">Chiama</a></div>`:''}</div></aside></div>${footer()}`
+  app.innerHTML=`<section class="detail-hero"><img src="${esc(img(e.image))}"><div class="detail-title"><span class="badge">${esc(e.category)}</span><h1>${esc(e.title)}</h1><div>${fmt(e.start_date)} · ${esc(e.city)}${e.locality?` · ${esc(e.locality)}`:''}</div></div></section><div class="container detail-layout"><article><h2>Informazioni</h2><p>${esc(e.description||'')}</p>${program}${e.poster_url?`<h2>Locandina</h2><img class="event-poster" src="${esc(e.poster_url)}" alt="Locandina di ${esc(e.title)}" loading="lazy" style="display:block;width:100%;max-width:700px;height:auto;object-fit:contain;border-radius:20px">`:''}${nearby.length?`<h2 style="margin-top:45px">Dove mangiare e dormire</h2><div class="grid-events">${nearby.map(placeCard).join('')}</div>`:''}</article><aside><div class="info-card"><div class="info-row"><b>Quando</b><br>${fmt(e.start_date)}${e.end_date&&e.end_date!==e.start_date?` — ${fmt(e.end_date)}`:''}</div><div class="info-row"><b>Dove</b><br>${esc(e.address||e.locality||e.city)}</div>${e.start_time?`<div class="info-row"><b>Ora</b><br>${esc(e.start_time)}</div>`:''}${e.organizer?`<div class="info-row"><b>Organizzato da</b><br>${esc(e.organizer)}</div>`:''}${e.phone?`<div class="info-row"><a class="btn btn-dark" href="tel:${esc(e.phone)}">Chiama</a></div>`:''}</div></aside></div>${footer()}`
 }
 function territoryPage(){
   app.innerHTML=`<section class="page-hero"><div class="container"><div class="eyebrow">ESPLORA</div><h1>Territorio</h1><p>Luoghi, comunità ed eventi del nostro territorio.</p></div></section><section class="section"><div class="container"><div class="territory-grid">${state.territories.map(t=>`<a class="territory-card" href="#/territorio/${t.id}"><img src="${esc(img(t.image))}" alt="${esc(t.name)}"><div><h3>${esc(t.name)}</h3><small>${esc(t.province)}</small></div></a>`).join('')||'<div class="empty">Nessun territorio inserito.</div>'}</div></div></section>${footer()}`;
