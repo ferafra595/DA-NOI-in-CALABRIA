@@ -16,6 +16,40 @@ function events(P){P.innerHTML=`<section class="panel"><div class="section-head"
 function uploadField(name,value,label='Immagine'){return `<div class="field full"><label>${label}</label><div class="upload-row"><input name="${name}" value="${esc(value||'')}"><input type="file" accept="image/*" data-upload="${name}"><button type="button" class="btn btn-outline upload-btn" data-target="${name}">Carica</button></div>${value?`<img src="${esc(value)}" class="admin-upload-preview" alt="Anteprima ${esc(label)}">`:''}</div>`}
 function provinceSelect(v=''){return `<select name="province">${provinces.map(p=>`<option ${p===v?'selected':''}>${p}</option>`).join('')}</select>`}
 function categorySelect(v=''){return `<select name="category">${categories.map(p=>`<option ${p===v?'selected':''}>${p}</option>`).join('')}</select>`}
+function parseEventAreas(raw=''){
+  if(Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  if(!raw) return [];
+  if(typeof raw==='string'){
+    const value=raw.trim();
+    if(!value)return [];
+    try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return parsed.map(String).filter(Boolean)}catch{}
+    return value.split('|').map(x=>x.trim()).filter(Boolean);
+  }
+  return [];
+}
+function territoryMultiSelect(raw=''){
+  const selected=parseEventAreas(raw);
+  const available=[...data.territories].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)||String(a.name||'').localeCompare(String(b.name||''),'it'));
+  const options=available.map(t=>`<label class="territory-option"><input type="checkbox" value="${esc(t.name)}" ${selected.includes(String(t.name))?'checked':''}><span><b>${esc(t.name)}</b>${t.province?`<small>${esc(t.province)}</small>`:''}</span></label>`).join('');
+  return `<div class="territory-multi" data-territory-multi><input type="hidden" name="area" value="${esc(JSON.stringify(selected))}"><button type="button" class="territory-multi-toggle"><span class="territory-multi-label">${selected.length?`${selected.length} territor${selected.length===1?'io':'i'} selezionat${selected.length===1?'o':'i'}`:'Seleziona territori'}</span><span class="territory-multi-arrow">⌄</span></button><div class="territory-multi-menu"><div class="territory-multi-options">${options||'<div class="territory-multi-empty">Crea prima almeno un territorio nella sezione Territorio.</div>'}</div></div><div class="territory-multi-selected"></div></div>`;
+}
+function bindTerritoryMultiSelect(root=document){
+  root.querySelectorAll('[data-territory-multi]').forEach(box=>{
+    const toggle=box.querySelector('.territory-multi-toggle'),menu=box.querySelector('.territory-multi-menu'),hidden=box.querySelector('input[name="area"]'),label=box.querySelector('.territory-multi-label'),selectedBox=box.querySelector('.territory-multi-selected');
+    const checks=[...box.querySelectorAll('.territory-option input[type="checkbox"]')];
+    const sync=()=>{
+      const values=checks.filter(c=>c.checked).map(c=>c.value);
+      hidden.value=JSON.stringify(values);
+      label.textContent=values.length?`${values.length} territor${values.length===1?'io':'i'} selezionat${values.length===1?'o':'i'}`:'Seleziona territori';
+      selectedBox.innerHTML=values.map(v=>`<span class="territory-selected-chip">${esc(v)}<button type="button" data-remove-territory="${esc(v)}" aria-label="Rimuovi ${esc(v)}">×</button></span>`).join('');
+      selectedBox.querySelectorAll('[data-remove-territory]').forEach(btn=>btn.onclick=()=>{const c=checks.find(x=>x.value===btn.dataset.removeTerritory);if(c)c.checked=false;sync()});
+    };
+    toggle.onclick=()=>{box.classList.toggle('open');toggle.setAttribute('aria-expanded',box.classList.contains('open')?'true':'false')};
+    checks.forEach(c=>c.addEventListener('change',sync));
+    document.addEventListener('click',ev=>{if(!box.contains(ev.target)){box.classList.remove('open');toggle.setAttribute('aria-expanded','false')}});
+    sync();
+  });
+}
 function parseProgramDays(raw,startDate,endDate){
   if(Array.isArray(raw)) return raw;
   if(typeof raw==='string'&&raw.trim()){
@@ -38,9 +72,10 @@ function adminDateLabel(iso){
 }
 function eventForm(e={}){
   const existingProgram=parseProgramDays(e.program,e.start_date,e.end_date);
-  document.querySelector('#panel').innerHTML=`<section class="panel"><div class="section-head"><div><h1>${e.id?'Modifica evento':'Nuovo evento'}</h1><p>Tutte le informazioni della scheda evento.</p></div><button class="btn btn-outline" id="back">Indietro</button></div><form class="admin-like-form" id="f"><div class="field"><label>Titolo *</label><input name="title" value="${esc(e.title||'')}" required></div><div class="field"><label>Categoria *</label>${categorySelect(e.category)}</div><div class="field"><label>Provincia</label>${provinceSelect(e.province)}</div><div class="field"><label>Territorio / area</label><input name="area" value="${esc(e.area||'')}"></div><div class="field"><label>Comune</label><input name="city" value="${esc(e.city||'')}"></div><div class="field"><label>Località</label><input name="locality" value="${esc(e.locality||'')}"></div><div class="field full"><label>Indirizzo</label><input name="address" value="${esc(e.address||'')}"></div><div class="field"><label>Data inizio *</label><input type="date" name="start_date" value="${esc(e.start_date||'')}" required></div><div class="field"><label>Data fine</label><input type="date" name="end_date" value="${esc(e.end_date||'')}"></div><div class="field"><label>Ora indicativa</label><input type="time" name="start_time" value="${esc(e.start_time||'')}"></div><div class="field"><label>Ingresso</label><select name="free"><option value="1" ${Number(e.free)!==0?'selected':''}>Gratuito</option><option value="0" ${Number(e.free)===0?'selected':''}>A pagamento</option></select></div>${uploadField('image',e.image,'Foto copertina')}${uploadField('poster_url',e.poster_url,'Locandina')}<div class="field full"><label>Descrizione</label><textarea name="description">${esc(e.description||'')}</textarea></div><div class="field full"><div class="program-admin-head"><div><label>Programma per giornata</label><small>Imposta data inizio e fine: qui comparirà automaticamente un riquadro per ogni giorno.</small></div></div><div id="programDays" class="program-admin-days"></div></div><div class="field"><label>Organizzatore</label><input name="organizer" value="${esc(e.organizer||'')}"></div><div class="field"><label>Telefono</label><input name="phone" value="${esc(e.phone||'')}"></div><div class="field"><label>Email</label><input type="email" name="email" value="${esc(e.email||'')}"></div><div class="field"><label>Social / sito</label><input name="social" value="${esc(e.social||'')}"></div><div class="field"><label><input type="checkbox" name="featured" ${e.featured?'checked':''}> In evidenza</label></div><div class="field full"><button class="btn btn-accent" type="submit">Salva evento</button></div></form></section>`;
+  document.querySelector('#panel').innerHTML=`<section class="panel"><div class="section-head"><div><h1>${e.id?'Modifica evento':'Nuovo evento'}</h1><p>Tutte le informazioni della scheda evento.</p></div><button class="btn btn-outline" id="back">Indietro</button></div><form class="admin-like-form" id="f"><div class="field"><label>Titolo *</label><input name="title" value="${esc(e.title||'')}" required></div><div class="field"><label>Categoria *</label>${categorySelect(e.category)}</div><div class="field"><label>Provincia</label>${provinceSelect(e.province)}</div><div class="field"><label>Territorio / area</label>${territoryMultiSelect(e.area)}</div><div class="field"><label>Comune</label><input name="city" value="${esc(e.city||'')}"></div><div class="field"><label>Località</label><input name="locality" value="${esc(e.locality||'')}"></div><div class="field full"><label>Indirizzo</label><input name="address" value="${esc(e.address||'')}"></div><div class="field"><label>Data inizio *</label><input type="date" name="start_date" value="${esc(e.start_date||'')}" required></div><div class="field"><label>Data fine</label><input type="date" name="end_date" value="${esc(e.end_date||'')}"></div><div class="field"><label>Ora indicativa</label><input type="time" name="start_time" value="${esc(e.start_time||'')}"></div><div class="field"><label>Ingresso</label><select name="free"><option value="1" ${Number(e.free)!==0?'selected':''}>Gratuito</option><option value="0" ${Number(e.free)===0?'selected':''}>A pagamento</option></select></div>${uploadField('image',e.image,'Foto copertina')}${uploadField('poster_url',e.poster_url,'Locandina')}<div class="field full"><label>Descrizione</label><textarea name="description">${esc(e.description||'')}</textarea></div><div class="field full"><div class="program-admin-head"><div><label>Programma per giornata</label><small>Imposta data inizio e fine: qui comparirà automaticamente un riquadro per ogni giorno.</small></div></div><div id="programDays" class="program-admin-days"></div></div><div class="field"><label>Organizzatore</label><input name="organizer" value="${esc(e.organizer||'')}"></div><div class="field"><label>Telefono</label><input name="phone" value="${esc(e.phone||'')}"></div><div class="field"><label>Email</label><input type="email" name="email" value="${esc(e.email||'')}"></div><div class="field"><label>Social / sito</label><input name="social" value="${esc(e.social||'')}"></div><div class="field"><label><input type="checkbox" name="featured" ${e.featured?'checked':''}> In evidenza</label></div><div class="field full"><button class="btn btn-accent" type="submit">Salva evento</button></div></form></section>`;
   document.querySelector('#back').onclick=()=>shell('events');
   bindUploads();
+  bindTerritoryMultiSelect(document.querySelector('#panel'));
   const f=document.querySelector('#f'),box=document.querySelector('#programDays');
   const renderProgramDays=()=>{
     const old={};box.querySelectorAll('[data-program-date]').forEach(x=>old[x.dataset.programDate]=x.value);

@@ -79,3 +79,23 @@
 @media(max-width:980px){.event-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.event-content-layout{grid-template-columns:minmax(0,1fr)}.contact-card{position:static}}
 @media(max-width:700px){.event-detail-wrap{padding-top:18px}.event-facts{grid-template-columns:1fr 1fr;gap:8px;padding:8px;border-radius:19px}.event-fact{padding:13px 12px;border-radius:14px}.event-fact span{font-size:9px}.event-fact strong{font-size:13px;margin-top:5px}.event-content-layout{padding-top:30px;gap:30px}.event-info-section h2,.poster-section h2{font-size:29px;margin-bottom:14px}.event-description{font-size:16px;line-height:1.7}.poster-section{margin-top:38px}.event-poster{width:100%;max-width:100%;border-radius:18px}.contact-card{padding:18px;border-radius:18px}.detail-hero{max-width:100%;overflow:hidden}.detail-title{max-width:calc(100% - 28px)}.detail-title h1{overflow-wrap:anywhere}.event-content-layout>article,.event-content-layout>aside{min-width:0;max-width:100%}}
 @media(max-width:430px){.event-facts{grid-template-columns:1fr}.event-fact{display:grid;grid-template-columns:82px minmax(0,1fr);gap:8px;align-items:start}.event-fact strong{margin-top:0}.event-fact span{padding-top:3px}}
+
+
+/* ADMIN — selezione multipla territori evento */
+.territory-multi{position:relative;width:100%}
+.territory-multi-toggle{width:100%;min-height:48px;border:1px solid #ddd;border-radius:14px;padding:13px 14px;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;color:#111}
+.territory-multi-arrow{font-size:20px;line-height:1;transition:transform .2s}
+.territory-multi.open .territory-multi-arrow{transform:rotate(180deg)}
+.territory-multi-menu{display:none;position:absolute;z-index:120;top:calc(100% + 8px);left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:16px;padding:8px;box-shadow:0 18px 45px rgba(0,0,0,.12);max-height:300px;overflow:auto}
+.territory-multi.open .territory-multi-menu{display:block}
+.territory-multi-options{display:grid;gap:4px}
+.territory-option{display:flex!important;align-items:center;gap:11px;padding:11px 12px;border-radius:11px;cursor:pointer;font-size:14px!important}
+.territory-option:hover{background:#f5f5f5}
+.territory-option input{width:18px;height:18px;margin:0;flex:0 0 auto;accent-color:#ef242b}
+.territory-option span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.territory-option small{font-size:11px;color:#777;font-weight:600}
+.territory-multi-selected{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.territory-selected-chip{display:inline-flex;align-items:center;gap:6px;background:#111;color:#fff;border-radius:999px;padding:7px 8px 7px 11px;font-size:11px;font-weight:800}
+.territory-selected-chip button{border:0;background:rgba(255,255,255,.18);color:#fff;width:19px;height:19px;border-radius:50%;padding:0;display:grid;place-items:center;line-height:1}
+.territory-multi-empty{padding:14px;color:#777;font-size:12px;line-height:1.45}
+@media(max-width:700px){.territory-multi-menu{position:static;margin-top:8px;max-height:260px;box-shadow:none}.territory-multi-toggle{min-height:54px}}
