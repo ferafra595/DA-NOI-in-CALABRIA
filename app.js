@@ -37,8 +37,28 @@ function eventDateRange(e,compact=false){
 }
 
 function card(e){return `<a class="event-card" href="#/evento/${encodeURIComponent(e.slug)}"><img src="${esc(img(e.image))}" alt="${esc(e.title)}"><div class="event-card-body"><span class="badge">${esc(e.category)}</span>${eventDateRange(e)}<h3>${esc(e.title)}</h3><div class="meta">${esc(e.locality||e.city)}${e.city&&e.locality?` · ${esc(e.city)}`:''}</div></div></a>`}
-function home(){const weekend=state.events.filter(e=>e.weekend).slice(0,6),upcoming=state.events.slice(0,7),hero=state.settings.hero_image||'';app.innerHTML=`<section class="hero"><div class="hero-bg" style="${hero?`background-image:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.18)),url('${esc(hero)}')`:''}"></div><div class="hero-content"><div class="eyebrow">EVENTI · TRADIZIONI · TERRITORIO</div><h1>Scopri cosa succede intorno a te.</h1><p>Feste, sagre, concerti ed eventi tra Marchesato, provincia di Crotone e Catanzaro.</p><form class="searchbar" id="heroSearch"><input placeholder="Cerca evento, comune o località"><button>⌕</button></form><div class="chips">${cats.slice(0,6).map(c=>`<a class="chip" href="#/eventi?cat=${encodeURIComponent(c)}">${c}</a>`).join('')}</div></div></section>
-<section class="section compact"><div class="container"><div class="section-head"><div><h2>Questo weekend</h2><p>Scopri cosa fare da venerdì a domenica.</p></div><a class="text-link" href="#/eventi">Vedi tutti →</a></div><div class="scroll-row">${(weekend.length?weekend:upcoming.slice(0,4)).map(card).join('')}</div></div></section>
+// Ritorna il venerdì e la domenica del weekend corrente (ven-dom) o del prossimo.
+// Le date dell'evento sono stringhe YYYY-MM-DD: confronto senza conversioni UTC.
+function visibleWeekendWindow(today=new Date()){
+  const start=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  const weekday=start.getDay(); // Domenica 0, venerdì 5, sabato 6
+  const daysToFriday=weekday===0?-2:weekday===6?-1:(5-weekday);
+  start.setDate(start.getDate()+daysToFriday);
+  const end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+2);
+  const isoLocal=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+  return {start:isoLocal(start),end:isoLocal(end)};
+}
+function hasWeekendFlag(value){
+  return value===true || value===1 || (typeof value==='string'&&['1','true','yes'].includes(value.toLowerCase()));
+}
+function isSelectedWeekendEvent(event,window){
+  if(!hasWeekendFlag(event.weekend)||!/^\d{4}-\d{2}-\d{2}$/.test(event.start_date||''))return false;
+  const end=event.end_date>=event.start_date?event.end_date:event.start_date;
+  // L'evento appare anche quando inizia prima di venerdì e termina nel weekend.
+  return event.start_date<=window.end && end>=window.start;
+}
+function home(){const weekendWindow=visibleWeekendWindow();const weekend=state.events.filter(e=>isSelectedWeekendEvent(e,weekendWindow)).sort((a,b)=>a.start_date.localeCompare(b.start_date)).slice(0,6),upcoming=state.events.slice(0,7),hero=state.settings.hero_image||'';app.innerHTML=`<section class="hero"><div class="hero-bg" style="${hero?`background-image:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.18)),url('${esc(hero)}')`:''}"></div><div class="hero-content"><div class="eyebrow">EVENTI · TRADIZIONI · TERRITORIO</div><h1>Scopri cosa succede intorno a te.</h1><p>Feste, sagre, concerti ed eventi tra Marchesato, provincia di Crotone e Catanzaro.</p><form class="searchbar" id="heroSearch"><input placeholder="Cerca evento, comune o località"><button>⌕</button></form><div class="chips">${cats.slice(0,6).map(c=>`<a class="chip" href="#/eventi?cat=${encodeURIComponent(c)}">${c}</a>`).join('')}</div></div></section>
+<section class="section compact"><div class="container"><div class="section-head"><div><h2>Questo weekend</h2><p>Scopri cosa fare da venerdì a domenica.</p></div><a class="text-link" href="#/eventi">Vedi tutti →</a></div><div class="scroll-row">${weekend.length?weekend.map(card).join(''):'<div class="empty weekend-empty">Nessun evento selezionato per questo weekend. Scopri gli altri appuntamenti nella sezione Eventi.</div>'}</div></div></section>
 <section class="section alt"><div class="container"><div class="section-head"><div><h2>Prossimi eventi</h2><p>Tutti gli eventi in ordine cronologico.</p></div><a class="text-link" href="#/eventi">Vedi tutti →</a></div><div class="agenda">${upcoming.map(e=>`<a class="agenda-item" href="#/evento/${encodeURIComponent(e.slug)}">${eventDateRange(e,true)}<img class="agenda-thumb" src="${esc(img(e.image))}"><div><h3>${esc(e.title)}</h3><div class="meta">${esc(e.city)}</div></div><span class="pill">${esc(e.category)}</span></a>`).join('')}</div></div></section>
 <section class="section"><div class="container"><div class="section-head"><div><h2>Esplora per categoria</h2><p>Trova l'evento giusto per te.</p></div></div><div class="category-grid">${cats.slice(0,6).map((c,i)=>`<a class="category-card" href="#/eventi?cat=${encodeURIComponent(c)}"><img src="${esc(state.settings['cat_'+keySlug(c)]||`https://images.unsplash.com/photo-${['1533174072545-7a4b6ad7a6c3','1501386761578-eac5c94b800a','1492684223066-81342ee5ff30','1529156069898-49953e39b3ac','1500530855697-b586d89ba3ee','1511795409834-ef04bbd61622'][i]}?auto=format&fit=crop&w=700&q=80`)}"><span>${c}</span></a>`).join('')}</div></div></section>
 <section class="section alt"><div class="container"><div class="section-head"><div><h2>Esplora il territorio</h2><p>Comuni, eventi e tradizioni.</p></div><a class="text-link" href="#/territorio">Vedi tutti →</a></div><div class="territory-grid">${(state.territories.length?state.territories.slice(0,6):[{id:0,name:'Marchesato',province:'Crotone',image:'https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1000&q=80'}]).map(t=>`<a class="territory-card" href="#/territorio/${t.id}"><img src="${esc(img(t.image))}"><div><h3>${esc(t.name)}</h3><small>${esc(t.province)}</small></div></a>`).join('')}</div></div></section>
