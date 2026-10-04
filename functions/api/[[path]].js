@@ -14,7 +14,10 @@ async function ensureTables(env){await env.DB.batch([
  env.DB.prepare(`CREATE TABLE IF NOT EXISTS submission_fields(id INTEGER PRIMARY KEY AUTOINCREMENT,field_key TEXT UNIQUE NOT NULL,label TEXT NOT NULL,field_type TEXT NOT NULL DEFAULT 'text',placeholder TEXT DEFAULT '',required INTEGER DEFAULT 0,active INTEGER DEFAULT 1,sort_order INTEGER DEFAULT 0,options TEXT DEFAULT '')`),
  env.DB.prepare(`CREATE TABLE IF NOT EXISTS site_settings(key TEXT PRIMARY KEY,value TEXT DEFAULT '',updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`),
  env.DB.prepare(`CREATE TABLE IF NOT EXISTS submission_payloads(submission_id INTEGER PRIMARY KEY,payload TEXT DEFAULT '{}')`),
- env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_profiles(partner_id INTEGER PRIMARY KEY,phone TEXT DEFAULT '',email TEXT DEFAULT '',address TEXT DEFAULT '',whatsapp TEXT DEFAULT '',facebook TEXT DEFAULT '',maps_url TEXT DEFAULT '')`)
+ env.DB.prepare(`CREATE TABLE IF NOT EXISTS partner_profiles(partner_id INTEGER PRIMARY KEY,phone TEXT DEFAULT '',email TEXT DEFAULT '',address TEXT DEFAULT '',whatsapp TEXT DEFAULT '',facebook TEXT DEFAULT '',maps_url TEXT DEFAULT '')`),
+ env.DB.prepare(`CREATE TABLE IF NOT EXISTS analytics(id INTEGER PRIMARY KEY AUTOINCREMENT,event_type TEXT NOT NULL,path TEXT DEFAULT '',entity_type TEXT DEFAULT '',entity_id TEXT DEFAULT '',label TEXT DEFAULT '',session_id TEXT DEFAULT '',referrer TEXT DEFAULT '',device TEXT DEFAULT '',meta TEXT DEFAULT '{}',created_at TEXT DEFAULT CURRENT_TIMESTAMP)`),
+ env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics(created_at)`),
+ env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics(event_type)`)
 ]);}
 async function sendNotify(env,s){if(!env.RESEND_API_KEY||!env.NOTIFY_EMAIL)return;await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:env.FROM_EMAIL||'Marchesato in Festa <onboarding@resend.dev>',to:[env.NOTIFY_EMAIL],subject:`Nuova segnalazione: ${s.title||'Evento'}`,html:`<h2>Nuova segnalazione</h2><p><b>${s.title||''}</b></p><p>${s.city||''} — ${s.start_date||''}</p><p>${s.email||''}</p>`})}).catch(()=>{})}
 const placeCols=['name','type','city','province','description','image','address','phone','whatsapp','instagram','website','maps_url'];
@@ -37,11 +40,43 @@ export async function onRequest({request,env,params}){
   if(method==='GET'&&path==='/submission-fields'){const r=await env.DB.prepare('SELECT * FROM submission_fields WHERE active=1 ORDER BY sort_order,id').all();return json({items:r.results||[]})}
   if(method==='GET'&&path==='/settings'){const r=await env.DB.prepare('SELECT key,value FROM site_settings').all();return json(Object.fromEntries((r.results||[]).map(x=>[x.key,x.value])))}
   if(method==='GET'&&path.startsWith('/media/')){if(!env.MEDIA)return bad('R2 non configurato',404);const k=decodeURIComponent(path.slice(7)),o=await env.MEDIA.get(k);if(!o)return bad('File non trovato',404);const h=new Headers();o.writeHttpMetadata(h);h.set('etag',o.httpEtag);h.set('cache-control','public,max-age=31536000,immutable');return new Response(o.body,{headers:h})}
+  if(method==='POST'&&path==='/analytics'){
+    const o=await body(request),allowed=['page_view','event_view','place_view','partner_view','territory_view','share','search','social_click','outbound_click'];
+    if(!allowed.includes(o.event_type))return bad('Evento analytics non valido');
+    const clean=v=>String(v??'').slice(0,500);
+    await env.DB.prepare('INSERT INTO analytics(event_type,path,entity_type,entity_id,label,session_id,referrer,device,meta) VALUES(?,?,?,?,?,?,?,?,?)').bind(clean(o.event_type),clean(o.path),clean(o.entity_type),clean(o.entity_id),clean(o.label),clean(o.session_id),clean(o.referrer),clean(o.device),JSON.stringify(o.meta||{}).slice(0,2000)).run();
+    return json({ok:true},201)
+  }
   if(method==='POST'&&path==='/submissions'){const o=await body(request);if(!o.title||!o.email||!o.start_date||!o.city)return bad('Titolo, email, data e comune sono obbligatori');const fixed=['title','category','province','city','locality','address','start_date','end_date','start_time','price_type','description','program_text','organizer','phone','email','social','poster_url'];const v=fixed.map(c=>o[c]||'');const ins=await env.DB.prepare(`INSERT INTO submissions(${fixed.join(',')}) VALUES(${fixed.map(()=>'?').join(',')})`).bind(...v).run();const sid=ins.meta?.last_row_id; if(sid) await env.DB.prepare('INSERT OR REPLACE INTO submission_payloads(submission_id,payload) VALUES(?,?)').bind(sid,JSON.stringify(o)).run();await sendNotify(env,o);return json({ok:true},201)}
   if(method==='POST'&&path==='/admin/login'){const o=await body(request);if(!env.ADMIN_PASSWORD||o.password!==env.ADMIN_PASSWORD)return bad('Password non valida',401);return json({ok:true},200,{'set-cookie':`mif_session=${await session(env)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200`})}
   if(method==='POST'&&path==='/admin/logout')return json({ok:true},200,{'set-cookie':'mif_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'});
   if(path.startsWith('/admin/')){const d=await must(request,env);if(d)return d}
   if(method==='GET'&&path==='/admin/dashboard'){const q=async s=>(await env.DB.prepare(s).first())?.c||0;return json({events:await q('SELECT COUNT(*) c FROM events'),upcoming:await q("SELECT COUNT(*) c FROM events WHERE start_date>=date('now') AND status='published'"),pending:await q("SELECT COUNT(*) c FROM submissions WHERE status='pending'"),places:await q('SELECT COUNT(*) c FROM places'),partners:await q('SELECT COUNT(*) c FROM partners'),territories:await q('SELECT COUNT(*) c FROM territories')})}
+  if(method==='GET'&&path==='/admin/analytics'){
+    const one=async(sql,...bind)=>(await env.DB.prepare(sql).bind(...bind).first())||{};
+    const many=async(sql,...bind)=>(await env.DB.prepare(sql).bind(...bind).all()).results||[];
+    const counts=await one(`SELECT
+      COUNT(CASE WHEN event_type='page_view' THEN 1 END) views_all,
+      COUNT(CASE WHEN event_type='page_view' AND created_at>=datetime('now','-1 day') THEN 1 END) views_today,
+      COUNT(CASE WHEN event_type='page_view' AND created_at>=datetime('now','-7 days') THEN 1 END) views_7d,
+      COUNT(CASE WHEN event_type='page_view' AND created_at>=datetime('now','-30 days') THEN 1 END) views_30d,
+      COUNT(DISTINCT CASE WHEN created_at>=datetime('now','-30 days') THEN NULLIF(session_id,'') END) sessions_30d,
+      COUNT(CASE WHEN event_type='event_view' AND created_at>=datetime('now','-30 days') THEN 1 END) event_views_30d,
+      COUNT(CASE WHEN event_type='share' AND created_at>=datetime('now','-30 days') THEN 1 END) shares_30d,
+      COUNT(CASE WHEN event_type='search' AND created_at>=datetime('now','-30 days') THEN 1 END) searches_30d,
+      COUNT(CASE WHEN event_type='social_click' AND created_at>=datetime('now','-30 days') THEN 1 END) social_clicks_30d,
+      COUNT(CASE WHEN event_type='outbound_click' AND created_at>=datetime('now','-30 days') THEN 1 END) outbound_30d
+      FROM analytics`);
+    const top_events=await many(`SELECT a.entity_id slug,COALESCE(e.title,a.entity_id) title,COUNT(*) views FROM analytics a LEFT JOIN events e ON e.slug=a.entity_id WHERE a.event_type='event_view' AND a.created_at>=datetime('now','-30 days') GROUP BY a.entity_id ORDER BY views DESC LIMIT 10`);
+    const top_pages=await many(`SELECT path,COUNT(*) views,COUNT(DISTINCT NULLIF(session_id,'')) sessions FROM analytics WHERE event_type='page_view' AND created_at>=datetime('now','-30 days') GROUP BY path ORDER BY views DESC LIMIT 12`);
+    const searches=await many(`SELECT label term,COUNT(*) total FROM analytics WHERE event_type='search' AND label<>'' AND created_at>=datetime('now','-30 days') GROUP BY lower(label) ORDER BY total DESC LIMIT 12`);
+    const devices=await many(`SELECT COALESCE(NULLIF(device,''),'altro') device,COUNT(*) total FROM analytics WHERE event_type='page_view' AND created_at>=datetime('now','-30 days') GROUP BY device ORDER BY total DESC`);
+    const referrers=await many(`SELECT referrer,COUNT(*) total FROM analytics WHERE event_type='page_view' AND referrer<>'' AND created_at>=datetime('now','-30 days') GROUP BY referrer ORDER BY total DESC LIMIT 10`);
+    const daily=await many(`SELECT date(created_at) day,COUNT(*) views,COUNT(DISTINCT NULLIF(session_id,'')) sessions FROM analytics WHERE event_type='page_view' AND created_at>=datetime('now','-30 days') GROUP BY date(created_at) ORDER BY day ASC`);
+    const socials=await many(`SELECT label,COUNT(*) clicks FROM analytics WHERE event_type='social_click' AND created_at>=datetime('now','-30 days') GROUP BY label ORDER BY clicks DESC`);
+    const entities=await many(`SELECT event_type,COUNT(*) total FROM analytics WHERE event_type IN ('event_view','place_view','partner_view','territory_view') AND created_at>=datetime('now','-30 days') GROUP BY event_type ORDER BY total DESC`);
+    return json({counts,top_events,top_pages,searches,devices,referrers,daily,socials,entities})
+  }
   if(method==='GET'&&path==='/admin/events'){const r=await env.DB.prepare('SELECT * FROM events ORDER BY start_date DESC').all();return json({items:r.results||[]})}
   if(method==='POST'&&path==='/admin/events'){
     const o=eventPayload(await body(request));
