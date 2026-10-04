@@ -37,8 +37,31 @@ function track(type,extra={}){try{const payload={event_type:type,path:location.h
 function absoluteShareUrl(slug){return `${location.origin}/share/event/${encodeURIComponent(slug)}`}
 async function shareEvent(e){const url=absoluteShareUrl(e.slug);const text=`${e.title} — ${formatEventRange(e)}${e.city?` · ${e.city}`:''}`;track('share',{entity_type:'event',entity_id:e.slug,label:e.title});if(navigator.share){try{await navigator.share({title:e.title,text,url});return}catch(err){if(err?.name==='AbortError')return}}try{await navigator.clipboard.writeText(url);const b=document.querySelector('#shareEvent');if(b){const old=b.innerHTML;b.innerHTML='✓ Link copiato';setTimeout(()=>b.innerHTML=old,1800)}}catch{prompt('Copia questo link:',url)}}
 async function load(){const req=async(u,k)=>{try{const j=await api(u);state[k]=j.items||j}catch{}};await Promise.all([req('/api/events','events'),req('/api/places','places'),req('/api/partners','partners'),req('/api/territories','territories'),req('/api/submission-fields','fields'),req('/api/settings','settings')]);applyBrand();route()}
-function applyBrand(){const b=$('.brand img');if(b&&state.settings.logo_black)b.src=state.settings.logo_black;const root=document.documentElement;root.style.setProperty('--logo-desktop-width',(Number(state.settings.logo_header_width)||210)+'px');root.style.setProperty('--logo-mobile-width',(Number(state.settings.logo_header_width_mobile)||155)+'px');root.style.setProperty('--logo-footer-width',(Number(state.settings.logo_footer_width)||190)+'px')}
-function footer(){const socials=[state.settings.instagram_url?`<a class="footer-social" href="${esc(state.settings.instagram_url)}" target="_blank" rel="noopener" data-social="Instagram" aria-label="DA NOI in Calabria su Instagram">Instagram ↗</a>`:'',state.settings.facebook_url?`<a class="footer-social" href="${esc(state.settings.facebook_url)}" target="_blank" rel="noopener" data-social="Facebook" aria-label="DA NOI in Calabria su Facebook">Facebook ↗</a>`:''].filter(Boolean).join('');return `<footer class="footer"><div class="container footer-grid"><img src="${esc(state.settings.logo_white||'/assets/logo-white.png')}" alt="DA NOI in Calabria"><div><div class="footer-links"><a href="#/eventi">Eventi</a><a href="#/territorio">Territorio</a><a href="#/mangiare">Dove mangiare</a><a href="#/dormire">Dove dormire</a><a href="#/partner">Partner</a><a href="/admin">Area riservata</a></div>${socials?`<div class="footer-socials"><span>Seguici</span>${socials}</div>`:''}</div><div>© 2026 DA NOI</div></div></footer>`}
+function socialIcon(type){
+  if(type==='instagram')return `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.4" cy="6.7" r="1.15" fill="currentColor"/></svg>`;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.7 21v-8h2.7l.4-3.1h-3.1V8c0-.9.3-1.5 1.6-1.5H17V3.7c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2H7.5V13h2.8v8h3.4Z"/></svg>`;
+}
+function socialLinks(extraClass=''){
+  return [
+    state.settings.instagram_url?`<a class="social-icon ${extraClass}" href="${esc(state.settings.instagram_url)}" target="_blank" rel="noopener" data-social="Instagram" aria-label="DA NOI in Calabria su Instagram">${socialIcon('instagram')}</a>`:'',
+    state.settings.facebook_url?`<a class="social-icon ${extraClass}" href="${esc(state.settings.facebook_url)}" target="_blank" rel="noopener" data-social="Facebook" aria-label="DA NOI in Calabria su Facebook">${socialIcon('facebook')}</a>`:''
+  ].filter(Boolean).join('');
+}
+function applyBrand(){
+  const b=$('.brand img');if(b&&state.settings.logo_black)b.src=state.settings.logo_black;
+  const root=document.documentElement;root.style.setProperty('--logo-desktop-width',(Number(state.settings.logo_header_width)||210)+'px');root.style.setProperty('--logo-mobile-width',(Number(state.settings.logo_header_width_mobile)||155)+'px');root.style.setProperty('--logo-footer-width',(Number(state.settings.logo_footer_width)||190)+'px');
+  document.querySelector('.header-socials')?.remove();
+  document.querySelector('.mobile-socials')?.remove();
+  const links=socialLinks();
+  if(links){
+    const header=document.querySelector('.site-header');
+    const cta=document.querySelector('.desktop-cta');
+    if(header){const wrap=document.createElement('div');wrap.className='header-socials';wrap.innerHTML=links;header.insertBefore(wrap,cta||document.querySelector('#menuToggle'));}
+    const mobileNav=document.querySelector('#mobileMenu nav');
+    if(mobileNav){const wrap=document.createElement('div');wrap.className='mobile-socials';wrap.innerHTML=links;mobileNav.appendChild(wrap);}
+  }
+}
+function footer(){const socials=socialLinks('footer-social');return `<footer class="footer"><div class="container footer-grid"><img src="${esc(state.settings.logo_white||'/assets/logo-white.png')}" alt="DA NOI in Calabria"><div><div class="footer-links"><a href="#/eventi">Eventi</a><a href="#/territorio">Territorio</a><a href="#/mangiare">Dove mangiare</a><a href="#/dormire">Dove dormire</a><a href="#/partner">Partner</a><a href="/admin">Area riservata</a></div>${socials?`<div class="footer-socials">${socials}</div>`:''}</div><div>© 2026 DA NOI</div></div></footer>`}
 
 function eventDateRange(e,compact=false){
   const start=e.start_date;
